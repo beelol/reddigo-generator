@@ -8,7 +8,7 @@ import (
 
 func main() {
 
-	endpointsData, err := scraper.ScrapeRedditAPI(10)
+	endpointsData, err := scraper.ScrapeRedditAPI(20)
 	if err != nil {
 		log.Fatalf("Error scraping API: %v", err)
 	}

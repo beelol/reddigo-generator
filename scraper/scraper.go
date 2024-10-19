@@ -1,11 +1,18 @@
 package scraper
 
 import (
+	"fmt"
 	"log"
 	"strings"
 
 	"github.com/gocolly/colly"
 )
+
+type Output struct {
+	Name        string
+	Description string
+	Type        string
+}
 
 type Parameter struct {
 	Name        string
@@ -26,7 +33,7 @@ type Endpoint struct {
 	Description string
 	URLParams   []string
 	Payload     []Input
-	Response    interface{}
+	Response    []Output
 	QueryParams []Parameter
 }
 
@@ -128,41 +135,26 @@ func parsePayloadLine(line string) (name, inputType, description string) {
 	name = strings.TrimSpace(strings.Trim(parts[0], `"`))
 	description = strings.TrimSpace(parts[1])
 
-	if strings.Contains(description, "boolean") {
-		inputType = "bool"
-	} else if strings.Contains(description, "integer") {
-		inputType = "int"
-	} else if strings.Contains(description, "string") || strings.Contains(description, "URL") || strings.Contains(description, "email") {
-		inputType = "string"
-	} else if strings.Contains(description, "one of") {
-		inputType = "enum"
-	} else {
-		inputType = "interface{}"
-	}
+	inputType = determineType(description)
 
 	return name, inputType, description
 }
 
 // Extract response parameters from the table
-func extractResponse(e *colly.HTMLElement) interface{} {
-	if e.DOM.Find("table.parameters").Length() > 0 {
-		if e.ChildText("table.parameters th") != "json" {
-			var response []Parameter
-			e.ForEach("table.parameters tbody tr", func(_ int, tr *colly.HTMLElement) {
-				paramName := tr.ChildText("th")
-				paramDesc := tr.ChildText("td p")
-				paramType := determineType(paramDesc)
+func extractResponse(e *colly.HTMLElement) []Output {
+	var response []Output
+	e.ForEach("table.parameters tbody tr", func(_ int, tr *colly.HTMLElement) {
+		paramName := tr.ChildText("th")
+		paramDesc := tr.ChildText("td p")
+		paramType := determineType(paramDesc)
 
-				response = append(response, Parameter{
-					Name:        paramName,
-					Description: paramDesc,
-					Type:        paramType,
-				})
-			})
-			return response
-		}
-	}
-	return map[string]interface{}{}
+		response = append(response, Output{
+			Name:        paramName,
+			Description: paramDesc,
+			Type:        paramType,
+		})
+	})
+	return response
 }
 
 // Extract query parameters if present
@@ -186,12 +178,44 @@ func extractQueryParams(e *colly.HTMLElement) []Parameter {
 
 // Determine the type of a parameter based on its description
 func determineType(description string) string {
-	if strings.Contains(description, "boolean") {
+	originalDesc := description
+	description = strings.ToLower(description)
+
+	switch {
+	case strings.Contains(description, "boolean"):
 		return "bool"
-	} else if strings.Contains(description, "integer") {
+	case strings.Contains(description, "integer"):
 		return "int"
-	} else if strings.Contains(description, "string") || strings.Contains(description, "valid URL") || strings.Contains(description, "a valid email") {
+	case strings.Contains(description, "string"):
 		return "string"
+	case strings.Contains(description, "valid url"):
+		return "string"
+	case strings.Contains(description, "a valid email"):
+		return "string"
+	case strings.Contains(description, "fullname"):
+		return "string"
+	case strings.Contains(description, "one of"):
+		// Extract the content between parentheses as the enum values
+		start := strings.Index(originalDesc, "one of (")
+		end := strings.Index(originalDesc, ")")
+		if start != -1 && end != -1 && end > start {
+			options := originalDesc[start+8 : end]
+			// Return formatted enum type with options
+			return fmt.Sprintf("enum(%s)", options)
+		}
+	case strings.Contains(description, "expand"):
+		return "bool"
+	case strings.Contains(description, "alphanumeric"):
+		return "string"
+	case strings.Contains(description, "characters"):
+		return "string"
+	// Retain the original cases that may not have been included before
+	case strings.Contains(description, "comma-separated"):
+		return "string"
+	case strings.Contains(description, "optional") && strings.Contains(description, "boolean"):
+		return "bool"
+	case strings.Contains(description, "optional") && strings.Contains(description, "integer"):
+		return "int"
 	}
 
 	return "interface{}"
