@@ -44,7 +44,8 @@ func ScrapeRedditAPI(limit int) ([]Endpoint, error) {
 	count := 0
 
 	c.OnHTML("div.endpoint", func(e *colly.HTMLElement) {
-		if count >= limit {
+		// limit <= 0 means get all
+		if limit > 0 && count >= limit {
 			return // Stop processing if we've reached the limit
 		}
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbletea"
+	bubbletea "github.com/charmbracelet/bubbletea"
 )
 
 func NewProgram(endpoints []string) *bubbletea.Program {
