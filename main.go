@@ -1,10 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
-	"reddit-go-api-generator/progress"
+	"reddit-go-api-generator/parser"
 	"reddit-go-api-generator/scraper"
 
 	"github.com/gocolly/colly"
@@ -42,32 +43,39 @@ func main() {
 		return
 	}
 
-	p := progress.NewProgram(count)
+	// p := progress.NewProgram(count)
 
-	go func() {
+	// go func() {
 
-		_, err := scraper.ScrapeRedditAPI(0, func(endpoint string) {
-			// p.Send(progress.SetCurrentEndpoint(endpoint))
-		}, func(endpoint string) {
-			p.Send(progress.IncrementProgress())
-		})
+	endpointsData, err := scraper.ScrapeRedditAPI(0, func(endpoint string) {
+		// p.Send(progress.SetCurrentEndpoint(endpoint))
+	}, func(endpoint string) {
+		// p.Send(progress.IncrementProgress())
+	})
 
-		if err != nil {
-			log.Fatalf("Error scraping API: %v", err)
-		}
-
-		// finalFunctions := parser.GenerateGoFunctions(endpointsData)
-
-		// p.Send(progress.HideProgressBar())
-		// log.Print(finalFunctions[0])
-		// p.Send(progress.Message{Type: "done"})
-		os.Exit(1)
-	}()
-
-	if err := p.Start(); err != nil {
-		log.Fatal(err)
-		os.Exit(1)
+	if err != nil {
+		log.Fatalf("Error scraping API: %v", err)
 	}
+
+	finalFunctions := parser.GenerateGoFunctions(endpointsData)
+
+	// p.Send(progress.HideProgressBar())
+	// log.Print(finalFunctions[0])
+	// p.Send(progress.Message{Type: "done"})
+	// os.Exit(1)
+	// }()
+
+	err = writeToFile("reddit_api_sdk.go", finalFunctions)
+	if err != nil {
+		log.Fatalf("Error writing to file: %v", err)
+	}
+
+	log.Println("Successfully wrote generated functions to reddit_api_sdk.go")
+
+	// if err := p.Start(); err != nil {
+	// 	log.Fatal(err)
+	// 	os.Exit(1)
+	// }
 	// Start TUI and listen for progress updates
 	// if err := p.Start(); err != nil {
 	// 	log.Fatal(err)
@@ -108,4 +116,24 @@ func main() {
 	// }
 
 	// log.Println("All endpoints processed successfully!")
+}
+
+// writeToFile writes the generated Go functions to a file
+func writeToFile(filename string, functions []string) error {
+	// Create or open the file
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("could not create file: %w", err)
+	}
+	defer file.Close()
+
+	// Write each function to the file
+	for _, function := range functions {
+		_, err := file.WriteString(function + "\n\n")
+		if err != nil {
+			return fmt.Errorf("could not write to file: %w", err)
+		}
+	}
+
+	return nil
 }
