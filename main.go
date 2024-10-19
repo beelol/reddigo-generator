@@ -2,40 +2,85 @@ package main
 
 import (
 	"log"
+	"os"
 
-	"reddit-go-api-generator/parser"
+	"reddit-go-api-generator/progress"
 	"reddit-go-api-generator/scraper"
+
+	"github.com/gocolly/colly"
 )
 
+// CountEndpointsOnRedditAPI counts the number of endpoints on the Reddit API documentation page
+func CountEndpointsOnRedditAPI() (int, error) {
+	count := 0
+	c := colly.NewCollector()
+
+	// Count each endpoint section
+	c.OnHTML("div.endpoint", func(e *colly.HTMLElement) {
+		count++
+		// log.Printf("Endpoint found: %s %s", e.ChildText("h3 span.method"), e.ChildText("h3 em.placeholder"))
+	})
+
+	// Visit the API documentation page
+	err := c.Visit("https://www.reddit.com/dev/api/")
+	if err != nil {
+		log.Fatalf("Error visiting URL: %v", err)
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func main() {
-	endpointsData, err := scraper.ScrapeRedditAPI(0)
+
+	// Initialize Bubbletea TUI
+	count, err := CountEndpointsOnRedditAPI()
+	println(count)
 
 	if err != nil {
-		log.Fatalf("Error scraping API: %v", err)
+		log.Fatal(err)
+		return
 	}
 
-	// for _, endpoint := range endpointsData {
-	// 	log.Printf("Endpoint: %s, Method: %s, Path: %s, Description: %s, URL Params: %v, Payload: %v, Response: %v, Query Params: %v",
-	// 		endpoint.ID, endpoint.Method, endpoint.Path, endpoint.Description, endpoint.URLParams, endpoint.Payload, endpoint.Response, endpoint.QueryParams)
+	p := progress.NewProgram(count)
+
+	go func() {
+
+		_, err := scraper.ScrapeRedditAPI(0, func(endpoint string) {
+			// p.Send(progress.SetCurrentEndpoint(endpoint))
+		}, func(endpoint string) {
+			p.Send(progress.IncrementProgress())
+		})
+
+		if err != nil {
+			log.Fatalf("Error scraping API: %v", err)
+		}
+
+		// finalFunctions := parser.GenerateGoFunctions(endpointsData)
+
+		// p.Send(progress.HideProgressBar())
+		// log.Print(finalFunctions[0])
+		// p.Send(progress.Message{Type: "done"})
+		os.Exit(1)
+	}()
+
+	if err := p.Start(); err != nil {
+		log.Fatal(err)
+		os.Exit(1)
+	}
+	// Start TUI and listen for progress updates
+	// if err := p.Start(); err != nil {
+	// 	log.Fatal(err)
 	// }
 
-	finalFunctions := parser.GenerateGoFunctions(endpointsData)
-	for _, function := range finalFunctions {
-		log.Print(function)
-	}
+	// for _, function := range finalFunctions {
+	// 	log.Print(function)
+	// }
 
 	return
 
 	// Load progress from file or initialize
 	// store.LoadProgress()
-
-	// Initialize Bubbletea TUI
-	// p := progress.NewProgram(store.GetEndpoints())
-
-	// // Start TUI and listen for progress updates
-	// if err := p.Start(); err != nil {
-	// 	log.Fatal(err)
-	// }
 
 	// // Scrape Reddit API Documentation
 	// endpoints, err := scraper.ScrapeRedditAPI()

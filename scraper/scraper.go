@@ -38,12 +38,13 @@ type Endpoint struct {
 }
 
 // ScrapeRedditAPI scrapes the Reddit API documentation
-func ScrapeRedditAPI(limit int) ([]Endpoint, error) {
+func ScrapeRedditAPI(limit int, onEndpointTargetted, onEndpointProcessed func(string)) ([]Endpoint, error) {
 	var endpoints []Endpoint
 	c := colly.NewCollector()
 	count := 0
 
 	c.OnHTML("div.endpoint", func(e *colly.HTMLElement) {
+
 		// limit <= 0 means get all
 		if limit > 0 && count >= limit {
 			return // Stop processing if we've reached the limit
@@ -54,6 +55,8 @@ func ScrapeRedditAPI(limit int) ([]Endpoint, error) {
 		path := extractCleanPath(e)
 
 		id := method + " " + path
+
+		onEndpointTargetted(id)
 
 		description := e.ChildText("div.md p")
 		if description == "" {
@@ -76,7 +79,8 @@ func ScrapeRedditAPI(limit int) ([]Endpoint, error) {
 			QueryParams: queryParams,
 		}
 
-		log.Printf("Processed endpoint: %s %s", method, path)
+		onEndpointProcessed(id)
+		// log.Printf("Processed endpoint: %s %s", method, path)
 		endpoints = append(endpoints, endpoint)
 		count++
 	})
