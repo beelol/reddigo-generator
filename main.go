@@ -35,19 +35,16 @@ func CountEndpointsOnRedditAPI() (int, error) {
 func main() {
 
 	// Initialize Bubbletea TUI
-	count, err := CountEndpointsOnRedditAPI()
-	println(count)
+	// count, err := CountEndpointsOnRedditAPI()
+	// println(count)
 
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	// if err != nil {
+	// 	log.Fatal(err)
 
-	// p := progress.NewProgram(count)
+	// 	return
+	// }
 
-	// go func() {
-
-	endpointsData, err := scraper.ScrapeRedditAPI(0, func(endpoint string) {
+	endpointsData, err := scraper.ScrapeRedditAPI(11, func(endpoint string) {
 		// p.Send(progress.SetCurrentEndpoint(endpoint))
 	}, func(endpoint string) {
 		// p.Send(progress.IncrementProgress())
@@ -59,12 +56,6 @@ func main() {
 
 	finalFunctions := parser.GenerateGoFunctions(endpointsData)
 
-	// p.Send(progress.HideProgressBar())
-	// log.Print(finalFunctions[0])
-	// p.Send(progress.Message{Type: "done"})
-	// os.Exit(1)
-	// }()
-
 	err = writeToFile("reddit_api_sdk.go", finalFunctions)
 	if err != nil {
 		log.Fatalf("Error writing to file: %v", err)
@@ -72,50 +63,7 @@ func main() {
 
 	log.Println("Successfully wrote generated functions to reddit_api_sdk.go")
 
-	// if err := p.Start(); err != nil {
-	// 	log.Fatal(err)
-	// 	os.Exit(1)
-	// }
-	// Start TUI and listen for progress updates
-	// if err := p.Start(); err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// for _, function := range finalFunctions {
-	// 	log.Print(function)
-	// }
-
 	return
-
-	// Load progress from file or initialize
-	// store.LoadProgress()
-
-	// // Scrape Reddit API Documentation
-	// endpoints, err := scraper.ScrapeRedditAPI()
-	// if err != nil {
-	// 	log.Fatalf("Error scraping API: %v", err)
-	// }
-
-	// // Parse and process each endpoint
-	// for _, endpoint := range endpoints {
-	// 	schema, err := parser.ParseEndpoint(endpoint)
-	// 	if err != nil {
-	// 		log.Printf("Error parsing endpoint %s: %v", endpoint.ID, err)
-	// 		continue
-	// 	}
-
-	// 	// Generate Go function for the endpoint
-	// 	if err := generator.GenerateFunction(schema); err != nil {
-	// 		log.Printf("Error generating function for %s: %v", endpoint.ID, err)
-	// 		continue
-	// 	}
-
-	// 	// Update progress and save state
-	// 	store.MarkCompleted(endpoint.ID)
-	// 	store.SaveProgress()
-	// }
-
-	// log.Println("All endpoints processed successfully!")
 }
 
 // writeToFile writes the generated Go functions to a file

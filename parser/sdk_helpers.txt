@@ -1,0 +1,48 @@
+package reddigo
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+)
+
+type ReddigoSDK struct {
+	clientID     string
+	clientSecret string
+	accessToken  string
+	refreshToken string
+	userAgent    string
+	httpClient   *http.Client
+}
+
+func NewReddigoSDK(config RedditConfig) *ReddigoSDK {
+	return &ReddigoSDK{
+		clientID:     config.ClientID,
+		clientSecret: config.ClientSecret,
+		accessToken:  config.AccessToken,
+		refreshToken: config.RefreshToken,
+		userAgent:    config.UserAgent,
+		httpClient:   &http.Client{},
+	}
+}
+
+func (sdk *ReddigoSDK) MakeRequest(method, endpoint string, body io.Reader) (*http.Response, error) {
+	url := fmt.Sprintf("https://oauth.reddit.com%s", endpoint)
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sdk.accessToken))
+	req.Header.Set("User-Agent", sdk.userAgent)
+
+	resp, err := sdk.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// if resp.StatusCode == http.StatusUnauthorized {
+	// Handle token refresh if needed
+	// }
+
+	return resp, nil
+}
