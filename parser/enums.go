@@ -20,7 +20,7 @@ func collectEnums(endpoint scraper.Endpoint, funcName string) []Enum {
 	for _, payload := range endpoint.Payload {
 		if strings.HasPrefix(payload.Type, "enum(") {
 			enumValues := extractEnumValues(payload.Type)
-			enumName := fmt.Sprintf("%s%sEnum", funcName, strings.Title(payload.Name))
+			enumName := fmt.Sprintf("%s%sEnum", funcName, toCamelCaseFromUnderscore(payload.Name))
 			enums = append(enums, Enum{Name: enumName, Values: enumValues})
 		}
 	}
@@ -29,7 +29,7 @@ func collectEnums(endpoint scraper.Endpoint, funcName string) []Enum {
 	for _, resp := range endpoint.Response {
 		if strings.HasPrefix(resp.Type, "enum(") {
 			enumValues := extractEnumValues(resp.Type)
-			enumName := fmt.Sprintf("%s%sEnum", funcName, strings.Title(resp.Name))
+			enumName := fmt.Sprintf("%s%sEnum", funcName, toCamelCaseFromUnderscore(resp.Name))
 			enums = append(enums, Enum{Name: enumName, Values: enumValues})
 		}
 	}
@@ -38,7 +38,7 @@ func collectEnums(endpoint scraper.Endpoint, funcName string) []Enum {
 	for _, param := range endpoint.QueryParams {
 		if strings.HasPrefix(param.Type, "enum(") {
 			enumValues := extractEnumValues(param.Type)
-			enumName := fmt.Sprintf("%s%sEnum", funcName, strings.Title(param.Name))
+			enumName := fmt.Sprintf("%s%sEnum", funcName, toCamelCaseFromUnderscore(param.Name))
 			enums = append(enums, Enum{Name: enumName, Values: enumValues})
 		}
 	}
