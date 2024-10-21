@@ -1,9 +1,12 @@
 package reddigo
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+  urlpkg "net/url"
 )
 
 type ReddigoSDK struct {
@@ -56,7 +59,6 @@ Description: Returns the identity of the user.
 func (sdk *ReddigoSDK) GetApiV1Me() (GetApiV1MeResponse, error) {
 	url := fmt.Sprintf("/api/v1/me")
 	// Construct the request for GET method
-	url := fmt.Sprintf("/api/v1/me")
 	req, err := sdk.MakeRequest("GET", url, nil)
 	if err != nil {
 		return GetApiV1MeResponse{}, err
@@ -79,7 +81,6 @@ Description: Return a breakdown of subreddit karma.
 func (sdk *ReddigoSDK) GetApiV1MeKarma() (GetApiV1MeKarmaResponse, error) {
 	url := fmt.Sprintf("/api/v1/me/karma")
 	// Construct the request for GET method
-	url := fmt.Sprintf("/api/v1/me/karma")
 	req, err := sdk.MakeRequest("GET", url, nil)
 	if err != nil {
 		return GetApiV1MeKarmaResponse{}, err
@@ -190,7 +191,6 @@ Description: Return the preference settings of the logged in user
 func (sdk *ReddigoSDK) GetApiV1MePrefs() (GetApiV1MePrefsResponse, error) {
 	url := fmt.Sprintf("/api/v1/me/prefs")
 	// Construct the request for GET method
-	url := fmt.Sprintf("/api/v1/me/prefs")
 	req, err := sdk.MakeRequest("GET", url, nil)
 	if err != nil {
 		return GetApiV1MePrefsResponse{}, err
@@ -695,7 +695,6 @@ func (sdk *ReddigoSDK) PatchApiV1MePrefs(acceptPms string, activityRelevantAds b
 		"whatsapp_enabled": whatsappEnabled,
 	}
 	// Construct the request for PATCH method
-	url := fmt.Sprintf("/api/v1/me/prefs")
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return PatchApiV1MePrefsResponse{}, err
@@ -724,7 +723,6 @@ Description: Return a list of trophies for the current user.
 func (sdk *ReddigoSDK) GetApiV1MeTrophies() (GetApiV1MeTrophiesResponse, error) {
 	url := fmt.Sprintf("/api/v1/me/trophies")
 	// Construct the request for GET method
-	url := fmt.Sprintf("/api/v1/me/trophies")
 	req, err := sdk.MakeRequest("GET", url, nil)
 	if err != nil {
 		return GetApiV1MeTrophiesResponse{}, err
@@ -756,14 +754,13 @@ Description: This endpoint is a listing.
 */
 func (sdk *ReddigoSDK) GetPrefsWhere(where string, where string, after string, before string, count string, limit string) (GetPrefsWhereResponse, error) {
 	url := fmt.Sprintf("/prefs/%s", where)
-	queryParams := url.Values{}
+	queryParams := urlpkg.Values{}
 	queryParams.Add("after", after)
 	queryParams.Add("before", before)
 	queryParams.Add("count", count)
 	queryParams.Add("limit", limit)
 	url += "?" + queryParams.Encode()
 	// Construct the request for GET method
-	url := fmt.Sprintf("/prefs/%s", where)
 	req, err := sdk.MakeRequest("GET", url, nil)
 	if err != nil {
 		return GetPrefsWhereResponse{}, err
@@ -786,7 +783,6 @@ Description: Check whether ReCAPTCHAs are needed for API methods
 func (sdk *ReddigoSDK) GetApiNeedsCaptcha() (GetApiNeedsCaptchaResponse, error) {
 	url := fmt.Sprintf("/api/needs_captcha")
 	// Construct the request for GET method
-	url := fmt.Sprintf("/api/needs_captcha")
 	req, err := sdk.MakeRequest("GET", url, nil)
 	if err != nil {
 		return GetApiNeedsCaptchaResponse{}, err
@@ -813,7 +809,6 @@ func (sdk *ReddigoSDK) PostApiV1CollectionsAddPostToCollection(collectionId inte
 		"link_fullname": linkFullname,
 	}
 	// Construct the request for POST method
-	url := fmt.Sprintf("/api/v1/collections/add_post_to_collection")
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return PostApiV1CollectionsAddPostToCollectionResponse{}, err
@@ -848,7 +843,6 @@ Description: Fetch a collection including all the links
 func (sdk *ReddigoSDK) GetApiV1CollectionsCollection() (GetApiV1CollectionsCollectionResponse, error) {
 	url := fmt.Sprintf("/api/v1/collections/collection")
 	// Construct the request for GET method
-	url := fmt.Sprintf("/api/v1/collections/collection")
 	req, err := sdk.MakeRequest("GET", url, nil)
 	if err != nil {
 		return GetApiV1CollectionsCollectionResponse{}, err
@@ -884,7 +878,6 @@ func (sdk *ReddigoSDK) PostApiV1CollectionsCreateCollection(description string, 
 		"title": title,
 	}
 	// Construct the request for POST method
-	url := fmt.Sprintf("/api/v1/collections/create_collection")
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return PostApiV1CollectionsCreateCollectionResponse{}, err
@@ -916,7 +909,6 @@ func (sdk *ReddigoSDK) PostApiV1CollectionsDeleteCollection(collectionId interfa
 		"collection_id": collectionId,
 	}
 	// Construct the request for POST method
-	url := fmt.Sprintf("/api/v1/collections/delete_collection")
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return PostApiV1CollectionsDeleteCollectionResponse{}, err

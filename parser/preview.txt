@@ -45,7 +45,7 @@ func POSTApiV1CollectionsCreateCollection(title string, description string, lang
 		"title": title,
 		"description": description,
 	}
-	queryParams := url.Values{}
+	queryParams := urlpkg.Values{}
 	queryParams.Add("lang", lang)
 	url += "?" + queryParams.Encode()
 	// Construct the request for POST method

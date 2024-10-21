@@ -19,8 +19,8 @@ func removeDynamicFields(path string) string {
 // Helper function to create the function name in camel case, handling placeholders
 func buildFunctionName(endpoint scraper.Endpoint) string {
 	method := strings.Title(strings.ToLower(endpoint.Method))
-	path := cleanPath(endpoint.Path)
-	return fmt.Sprintf("%s%s", method, path)
+	name := cleanPath(endpoint.Path)
+	return fmt.Sprintf("%s%s", method, name)
 }
 
 // Helper function to generate the response struct if needed
@@ -165,7 +165,7 @@ func buildQueryParams(endpoint scraper.Endpoint) string {
 	if len(endpoint.QueryParams) == 0 {
 		return ""
 	}
-	queryParamsBuild := "\tqueryParams := url.Values{}\n"
+	queryParamsBuild := "\tqueryParams := urlpkg.Values{}\n"
 	for _, queryParam := range endpoint.QueryParams {
 		queryParamsBuild += fmt.Sprintf("\tqueryParams.Add(\"%s\", %s)\n", toSnakeCase(queryParam.Name), toLowerCamelCase(queryParam.Name))
 	}
@@ -178,7 +178,7 @@ func buildRequest(endpoint scraper.Endpoint, funcName string) string {
 	requestBuild := fmt.Sprintf("\t// Construct the request for %s method\n", endpoint.Method)
 
 	// Build the URL using the helper function
-	requestBuild += buildURL(endpoint)
+	// requestBuild += buildURL(endpoint)
 
 	// Add headers and body for POST/PUT methods
 	if endpoint.Method == "POST" || endpoint.Method == "PATCH" || endpoint.Method == "PUT" {
