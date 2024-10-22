@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"log"
 	"reddit-go-api-generator/scraper"
 	"strings"
 )
@@ -78,18 +79,27 @@ Description: %s
 // }
 
 func generateFunctionSignature(endpoint scraper.Endpoint, funcName string, enums []Enum) string {
-	params := collectFunctionParameters(endpoint, enums)
+	log.Printf("Generating function signature for: %s", funcName)
+
+	params := collectFunctionParameters(endpoint)
+
+	log.Printf("Parameters collected: %v", params)
+
 	return fmt.Sprintf("func (sdk *ReddigoSDK) %s(%s) (%sResponse, error) {\n", funcName, strings.Join(params, ", "), funcName)
 }
 
 // Helper function to collect parameters for the function signature
-func collectFunctionParameters(endpoint scraper.Endpoint, enums []Enum) []string {
+func collectFunctionParameters(endpoint scraper.Endpoint) []string {
 	var params []string
 	// Add dynamic parts (e.g., subreddit, where)
 	dynamicFields := extractDynamicFields(endpoint.Path)
+
+	log.Printf("Dynamic fields extracted: %v", dynamicFields)
+
 	for _, field := range dynamicFields {
 		params = append(params, fmt.Sprintf("%s string", toLowerCamelCase(field)))
 	}
+
 	// Add URL parameters, payload, and query parameters
 	for _, param := range endpoint.URLParams {
 		params = append(params, fmt.Sprintf("%s string", toLowerCamelCase(param)))
@@ -117,20 +127,21 @@ func buildURL(endpoint scraper.Endpoint) string {
 	return urlBuild
 }
 
-// Helper function to extract dynamic fields from a URL path
 func extractDynamicFields(path string) []string {
 	var fields []string
-	// Extract only fields enclosed in curly braces
-	start := strings.Index(path, "{")
-	for start != -1 {
-		end := strings.Index(path[start:], "}")
-		if end != -1 {
-			field := path[start+1 : start+end]
-			fields = append(fields, field)
-			start = strings.Index(path[start+end:], "{")
-		} else {
+	for {
+		start := strings.Index(path, "{")
+		if start == -1 {
 			break
 		}
+		end := strings.Index(path[start:], "}")
+		if end == -1 {
+			break
+		}
+		field := path[start+1 : start+end]
+		fields = append(fields, field)
+		// Move 'path' forward beyond the closing brace
+		path = path[start+end+1:]
 	}
 	return fields
 }

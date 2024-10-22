@@ -1,12 +1,20 @@
 package scraper
 
 import (
+	"context"
 	"fmt"
-	"log"
-	"strings"
-
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
+	"log"
+	"net/http"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	RedditAPIUrl = "http://localhost:63456/reddit_api"
 )
 
 type RedditAPIField struct {
@@ -44,104 +52,148 @@ type Endpoint struct {
 	QueryParams []Parameter
 }
 
-// ScrapeRedditAPI scrapes the Reddit API documentation
-func ScrapeRedditAPI(limit int, onEndpointTargetted, onEndpointProcessed func(string)) ([]Endpoint, error) {
-	var endpoints []Endpoint
+func ScrapeRedditAPI(limit int, onEndpointTargeted, onEndpointProcessed func(string)) ([]Endpoint, error) {
 	c := colly.NewCollector()
+	c.SetRequestTimeout(1 * time.Second) // Adjust as needed
+	var mu sync.Mutex                    // For safe access to results slice
+	var wg sync.WaitGroup
 
-	// c.Limit(&colly.LimitRule{
-	// 	DomainGlob:  "*",
-	// 	Parallelism: 1,               // Only one request at a time
-	// 	Delay:       2 * time.Second, // 2 seconds delay between requests
-	// })
-
-	// c.SetRequestTimeout(10 * time.Second) // 10-second timeout for each request
-
-	c.OnError(func(r *colly.Response, err error) {
-		fmt.Printf("Request URL: %v failed with response: %v\nError: %v\n", r.Request.URL, r, err)
+	c.WithTransport(&http.Transport{
+		IdleConnTimeout:     5 * time.Second,
+		MaxIdleConnsPerHost: 1,
 	})
 
-	c.OnResponse(func(r *colly.Response) {
-		fmt.Printf("Visited: %s\n", r.Request.URL)
+	c.Limit(&colly.LimitRule{
+		DomainGlob:  "*reddit.com*",
+		Parallelism: 5,
 	})
 
-	count := 0
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c.OnRequest(func(r *colly.Request) {
+		select {
+		case <-ctx.Done():
+			log.Println("Request canceled for:", r.URL.String())
+			r.Abort()
+		default:
+		}
+	})
+
+	var elements []*colly.HTMLElement
+	results := make([]Endpoint, 0)
 
 	c.OnHTML("div.endpoint", func(e *colly.HTMLElement) {
-
-		// limit <= 0 means get all
-		if limit > 0 && count >= limit {
-			return // Stop processing if we've reached the limit
-		}
-
-		method := e.ChildText("h3 span.method")
-
-		path := extractDynamicPath(e)
-
-		id := method + " " + path
-
-		onEndpointTargetted(id)
-
-		description := e.ChildText("div.md p")
-		if description == "" {
-			description = "No description available"
-		}
-
-		urlParams := extractURLParams(e)
-
-		payload := extractPayload(e)
-		newPayload, response := extractPayloadOrResponse(e, method)
-
-		queryParams := extractQueryParams(e)
-
-		finalPayload := payload
-
-		if len(newPayload) > len(payload) {
-			finalPayload = newPayload
-		}
-
-		endpoint := Endpoint{
-			ID:          id,
-			Method:      method,
-			Path:        path,
-			Description: description,
-			URLParams:   urlParams,
-			Payload:     finalPayload,
-			Response:    response,
-			QueryParams: queryParams,
-		}
-
-		onEndpointProcessed(id)
-		// log.Printf("Processed endpoint: %s %s", method, path)
-		fmt.Printf("Endpoint Path: %s\n", path)
-
-		endpoints = append(endpoints, endpoint)
-		count++
+		elements = append(elements, e) // Collect all matching elements
 	})
 
-	// localFilePath := "./reddit_api.html"
+	c.OnError(func(r *colly.Response, err error) {
+		log.Printf("Error visiting %s: %v", r.Request.URL, err)
+	})
 
-	// // Check if the local HTML file exists
-	// if _, err := os.Stat(localFilePath); err == nil {
-	// 	// If the local file exists, visit it
-	// 	err := c.Visit("file://" + localFilePath)
-	// 	if err != nil {
-	// 		log.Fatalf("Error visiting local HTML file: %v", err)
-	// 	}
-	// } else {
-	// 	// If the local file does not exist, visit the remote URL
-	err := c.Visit("https://www.reddit.com/dev/api/")
+	// Start collection and wait for it to finish
+	err := c.Visit(RedditAPIUrl)
 	if err != nil {
-		log.Fatalf("Error visiting remote URL: %v", err)
+		log.Printf("Error during visit: %v", err)
+		return nil, err
 	}
-	// }
 
-	// if err != nil {
-	// 	log.Fatalf("Error visiting URL: %v", err)
-	// 	return nil, err
-	// }
+	log.Println("Visit completed")
 
-	return endpoints, nil
+	// Split the collected elements into 4 parts
+	splittedElements := splitIntoParts(elements, 4)
+
+	// Process each segment concurrently
+	for _, segment := range splittedElements {
+		wg.Add(1)
+		go func(segment []*colly.HTMLElement) {
+			defer wg.Done()
+			var localResults []Endpoint
+			for _, e := range segment {
+				endpoint := processEndpoint(e)
+				localResults = append(localResults, endpoint)
+			}
+
+			// Lock to safely append to the shared results slice
+			mu.Lock()
+			results = append(results, localResults...)
+			mu.Unlock()
+		}(segment)
+	}
+
+	c.OnScraped(func(r *colly.Response) {
+		log.Println("Scraping finished for", r.Request.URL)
+	})
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	//os.Exit(0)
+	log.Printf("Scraping completed. Found %d endpoints", len(results))
+	log.Printf("Number of Goroutines: %d", runtime.NumGoroutine())
+
+	return results, nil
+}
+
+func processEndpoint(e *colly.HTMLElement,
+
+//onEndpointTargetted func(string), onEndpointProcessed func(string)
+
+) Endpoint {
+	start := time.Now()
+	log.Println("Processing started")
+
+	method := e.ChildText("h3 span.method")
+	log.Printf("Method extracted: %s (Time: %v)", method, time.Since(start))
+
+	path := extractDynamicPath(e)
+	log.Printf("Path extracted: %s (Time: %v)", path, time.Since(start))
+
+	// Continue logging other operations in the same way...
+	description := e.ChildText("div.md p")
+	log.Printf("Description extracted: %s (Time: %v)", description, time.Since(start))
+
+	// Further down the function, after each major step
+	log.Printf("Endpoint processed in %v", time.Since(start))
+
+	id := method + " " + path
+
+	//onEndpointTargetted(id)
+
+	if description == "" {
+		description = "No description available"
+	}
+
+	urlParams := extractURLParams(e)
+	log.Printf("urlParams processed in %v", time.Since(start))
+
+	payload := extractPayload(e)
+	log.Printf("payload processed in %v", time.Since(start))
+
+	newPayload, response := extractPayloadOrResponse(e, method)
+
+	queryParams := extractQueryParams(e)
+
+	finalPayload := payload
+
+	if len(newPayload) > len(payload) {
+		finalPayload = newPayload
+	}
+
+	endpoint := Endpoint{
+		ID:          id,
+		Method:      method,
+		Path:        path,
+		Description: description,
+		URLParams:   urlParams,
+		Payload:     finalPayload,
+		Response:    response,
+		QueryParams: queryParams,
+	}
+
+	//onEndpointProcessed(id)
+
+	return endpoint
 }
 
 // Extract URL parameters from placeholders in the path
@@ -150,6 +202,7 @@ func extractURLParams(e *colly.HTMLElement) []string {
 	e.ForEach("h3 em.placeholder", func(_ int, em *colly.HTMLElement) {
 		urlParams = append(urlParams, em.Text)
 	})
+
 	return urlParams
 }
 
@@ -442,4 +495,20 @@ func extractDynamicPath(e *colly.HTMLElement) string {
 	cleanPath = strings.ReplaceAll(cleanPath, "]", "")
 
 	return cleanPath
+}
+
+// Split a slice of elements into `n` parts
+func splitIntoParts(elements []*colly.HTMLElement, n int) [][]*colly.HTMLElement {
+	length := len(elements)
+	partSize := (length + n - 1) / n // This ensures we split the slice evenly
+
+	var parts [][]*colly.HTMLElement
+	for i := 0; i < length; i += partSize {
+		end := i + partSize
+		if end > length {
+			end = length
+		}
+		parts = append(parts, elements[i:end])
+	}
+	return parts
 }
