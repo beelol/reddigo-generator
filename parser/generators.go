@@ -20,8 +20,18 @@ func removeDynamicFields(path string) string {
 // Helper function to create the function name in camel case, handling placeholders
 func buildFunctionName(endpoint scraper.Endpoint) string {
 	method := strings.Title(strings.ToLower(endpoint.Method))
-	name := cleanPath(endpoint.Path)
+	name := cleanAPIPath(endpoint.Path)
+	name = cleanPath(name)
 	return fmt.Sprintf("%s%s", method, name)
+}
+
+// Helper function to safely remove /api/v1/ or /api/ from the path
+func cleanAPIPath(path string) string {
+	// Remove /api/v1/ if it exists
+	path = strings.Replace(path, "/api/v1/", "/", 1)
+	// Remove /api/ if it exists (only if /api/v1/ wasn't present)
+	path = strings.Replace(path, "/api/", "/", 1)
+	return path
 }
 
 // Helper function to generate the response struct if needed
@@ -126,7 +136,7 @@ func collectFunctionParameters(endpoint scraper.Endpoint) []string {
 			paramSet[paramName] = true
 		}
 	}
-	
+
 	return params
 }
 
