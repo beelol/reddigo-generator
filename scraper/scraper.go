@@ -404,7 +404,7 @@ func extractQueryParams(e *colly.HTMLElement) []Parameter {
 	return queryParams
 }
 
-// Determine the type of a parameter based on its description
+// Determine the type of a property based on its description
 func determineType(description string) string {
 	originalDesc := description
 	description = strings.ToLower(description)
@@ -412,6 +412,8 @@ func determineType(description string) string {
 	switch {
 	case strings.Contains(description, "boolean"):
 		return "bool"
+	//case strings.Contains(description, "json"):
+	//	return "json"
 	case strings.Contains(description, "integer"):
 		return "int"
 	case strings.Contains(description, "string"):

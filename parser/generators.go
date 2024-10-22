@@ -91,28 +91,42 @@ func generateFunctionSignature(endpoint scraper.Endpoint, funcName string, enums
 // Helper function to collect parameters for the function signature
 func collectFunctionParameters(endpoint scraper.Endpoint) []string {
 	var params []string
+	paramSet := make(map[string]bool) // A set to track existing parameter names
+
 	// Add dynamic parts (e.g., subreddit, where)
 	dynamicFields := extractDynamicFields(endpoint.Path)
-
-	log.Printf("Dynamic fields extracted: %v", dynamicFields)
-
 	for _, field := range dynamicFields {
-		params = append(params, fmt.Sprintf("%s string", toLowerCamelCase(field)))
+		paramName := toLowerCamelCase(field)
+		if !paramSet[paramName] { // Only add if it hasn't been added yet
+			params = append(params, fmt.Sprintf("%s string", paramName))
+			paramSet[paramName] = true
+		}
 	}
 
 	// Add URL parameters, payload, and query parameters
 	for _, param := range endpoint.URLParams {
-		params = append(params, fmt.Sprintf("%s string", toLowerCamelCase(param)))
+		paramName := toLowerCamelCase(param)
+		if !paramSet[paramName] {
+			params = append(params, fmt.Sprintf("%s string", paramName))
+			paramSet[paramName] = true
+		}
 	}
 	for _, payload := range endpoint.Payload {
-
+		paramName := toLowerCamelCase(payload.Name)
 		paramType := adjustEnumType(payload.Type)
-
-		params = append(params, fmt.Sprintf("%s %s", toLowerCamelCase(payload.Name), paramType))
+		if !paramSet[paramName] {
+			params = append(params, fmt.Sprintf("%s %s", paramName, paramType))
+			paramSet[paramName] = true
+		}
 	}
 	for _, queryParam := range endpoint.QueryParams {
-		params = append(params, fmt.Sprintf("%s string", toLowerCamelCase(queryParam.Name)))
+		paramName := toLowerCamelCase(queryParam.Name)
+		if !paramSet[paramName] {
+			params = append(params, fmt.Sprintf("%s string", paramName))
+			paramSet[paramName] = true
+		}
 	}
+	
 	return params
 }
 
@@ -160,6 +174,12 @@ func transformDynamicFields(path string) string {
 func buildPayload(endpoint scraper.Endpoint) string {
 	if len(endpoint.Payload) == 0 {
 		return ""
+	}
+
+	// Check if the payload should be treated as the entire JSON body
+	if len(endpoint.Payload) == 1 && strings.ToLower(endpoint.Payload[0].Name) == "json" {
+		payloadName := toLowerCamelCase(endpoint.Payload[0].Name)
+		return fmt.Sprintf("\tpayload := %s\n", payloadName)
 	}
 
 	payloadBuild := "\tpayload := map[string]interface{}{\n"
