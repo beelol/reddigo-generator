@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reddit-go-api-generator/parser"
 	"reddit-go-api-generator/scraper"
@@ -81,14 +82,35 @@ func main() {
 		log.Fatalf("Error writing to file: %v", err)
 	}
 
+	// Initialize the Go module after writing the file
+	err = initGoModule(sdkPath, "github.com/stationFortyTwo/ReddiGo")
+	if err != nil {
+		log.Fatalf("Error initializing Go module: %v", err)
+	}
+
 	// Iterate through the collected endpoints and print them
 	for _, endpoint := range endpointsData {
 		fmt.Printf("Endpoint: %+v\n", endpoint)
 	}
 
-	log.Println("Successfully wrote generated functions to reddit_api_sdk.go")
+	log.Println("Successfully built ReddiGo SDK")
 
 	os.Exit(0)
+}
+
+// initGoModule initializes a new Go module in the specified directory
+func initGoModule(basePath string, moduleName string) error {
+	cmd := exec.Command("go", "mod", "init", moduleName)
+	cmd.Dir = basePath // Set the directory where the command should run
+
+	// Run the command and capture output
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to initialize go module: %w, output: %s", err, string(output))
+	}
+
+	fmt.Printf("Go module initialized: %s\n", string(output))
+	return nil
 }
 
 // writeToFile writes the generated Go functions to a file
