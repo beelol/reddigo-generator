@@ -9,7 +9,7 @@ import (
   urlpkg "net/url"
 )
 
-type ReddigoSDK struct {
+type ReddiGoSDK struct {
 	clientID     string
 	clientSecret string
 	accessToken  string
@@ -18,8 +18,8 @@ type ReddigoSDK struct {
 	httpClient   *http.Client
 }
 
-func NewReddigoSDK(config RedditConfig) *ReddigoSDK {
-	return &ReddigoSDK{
+func NewReddiGoSDK(config RedditConfig) *ReddiGoSDK {
+	return &ReddiGoSDK{
 		clientID:     config.ClientID,
 		clientSecret: config.ClientSecret,
 		accessToken:  config.AccessToken,
@@ -29,7 +29,7 @@ func NewReddigoSDK(config RedditConfig) *ReddigoSDK {
 	}
 }
 
-func (sdk *ReddigoSDK) MakeRequest(method, endpoint string, body io.Reader) (*http.Response, error) {
+func (sdk *ReddiGoSDK) MakeRequest(method, endpoint string, body io.Reader) (*http.Response, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com%s", endpoint)
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {

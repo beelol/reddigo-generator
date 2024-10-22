@@ -82,10 +82,10 @@ Description: %s
 `, funcName, endpoint.Method, endpoint.Path, endpoint.ID, endpoint.Description)
 }
 
-// Helper function to generate the function signature as a method of ReddigoSDK
+// Helper function to generate the function signature as a method of ReddiGoSDK
 // func generateFunctionSignature(endpoint scraper.Endpoint, funcName string) string {
 // 	params := collectFunctionParameters(endpoint)
-// 	return fmt.Sprintf("func (sdk *ReddigoSDK) %s(%s) (%sResponse, error) {\n", funcName, strings.Join(params, ", "), funcName)
+// 	return fmt.Sprintf("func (sdk *ReddiGoSDK) %s(%s) (%sResponse, error) {\n", funcName, strings.Join(params, ", "), funcName)
 // }
 
 func generateFunctionSignature(endpoint scraper.Endpoint, funcName string, enums []Enum) string {
@@ -95,7 +95,7 @@ func generateFunctionSignature(endpoint scraper.Endpoint, funcName string, enums
 
 	log.Printf("Parameters collected: %v", params)
 
-	return fmt.Sprintf("func (sdk *ReddigoSDK) %s(%s) (%sResponse, error) {\n", funcName, strings.Join(params, ", "), funcName)
+	return fmt.Sprintf("func (sdk *ReddiGoSDK) %s(%s) (%sResponse, error) {\n", funcName, strings.Join(params, ", "), funcName)
 }
 
 // Helper function to collect parameters for the function signature
@@ -214,7 +214,7 @@ func buildQueryParams(endpoint scraper.Endpoint) string {
 	return queryParamsBuild
 }
 
-// Helper function to construct the request using MakeRequest from ReddigoSDK
+// Helper function to construct the request using MakeRequest from ReddiGoSDK
 func buildRequest(endpoint scraper.Endpoint, funcName string) string {
 	requestBuild := fmt.Sprintf("\t// Construct the request for %s method\n", endpoint.Method)
 
