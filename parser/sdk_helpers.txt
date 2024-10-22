@@ -2,12 +2,22 @@ package reddigo
 
 import (
 	"bytes"
-	"encoding/json"
+	jsonpkg "encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-  urlpkg "net/url"
+	urlpkg "net/url"
+	"strings"
+	"time"
 )
+
+type RedditConfig struct {
+	ClientID     string
+	ClientSecret string
+	AccessToken  string
+	RefreshToken string
+	UserAgent    string
+}
 
 type ReddiGoSDK struct {
 	clientID     string
@@ -15,6 +25,7 @@ type ReddiGoSDK struct {
 	accessToken  string
 	refreshToken string
 	userAgent    string
+	tokenExpiry  time.Time
 	httpClient   *http.Client
 }
 
@@ -25,6 +36,7 @@ func NewReddiGoSDK(config RedditConfig) *ReddiGoSDK {
 		accessToken:  config.AccessToken,
 		refreshToken: config.RefreshToken,
 		userAgent:    config.UserAgent,
+		tokenExpiry:  time.Now(),
 		httpClient:   &http.Client{},
 	}
 }
@@ -39,6 +51,7 @@ func (sdk *ReddiGoSDK) refreshTokenIfNeeded() error {
 		data.Set("refresh_token", sdk.refreshToken)
 
 		req, err := http.NewRequest("POST", url, strings.NewReader(data.Encode()))
+
 		if err != nil {
 			return fmt.Errorf("failed to create new request: %w", err)
 		}
@@ -56,7 +69,7 @@ func (sdk *ReddiGoSDK) refreshTokenIfNeeded() error {
 
 		// Check if the status code indicates success
 		if resp.StatusCode != http.StatusOK {
-			body, _ := ioutil.ReadAll(resp.Body)
+			body, _ := io.ReadAll(resp.Body)
 			return fmt.Errorf("failed to refresh token, status: %d, response: %s", resp.StatusCode, string(body))
 		}
 
@@ -65,7 +78,7 @@ func (sdk *ReddiGoSDK) refreshTokenIfNeeded() error {
 			AccessToken string `json:"access_token"`
 			ExpiresIn   int    `json:"expires_in"`
 		}
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		if err := jsonpkg.NewDecoder(resp.Body).Decode(&result); err != nil {
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
 
@@ -88,6 +101,11 @@ func (sdk *ReddiGoSDK) MakeRequest(method, endpoint string, body io.Reader) (*ht
 	if err != nil {
 		return nil, err
 	}
+
+	if body != nil {
+        req.Header.Set("Content-Type", "application/json")
+    }
+
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sdk.accessToken))
 	req.Header.Set("User-Agent", sdk.userAgent)
 

@@ -7,6 +7,8 @@ import (
 	"github.com/gocolly/colly"
 	"log"
 	"net/http"
+	"reddit-go-api-generator/models"
+	"reddit-go-api-generator/parser"
 	"runtime"
 	"strings"
 	"sync"
@@ -14,45 +16,11 @@ import (
 )
 
 const (
-	RedditAPIUrl = "http://localhost:63456/reddit_api"
+	//RedditAPIUrl = "http://localhost:63456/reddit_api"
+	RedditAPIUrl = "https://www.reddit.com/dev/api"
 )
 
-type RedditAPIField struct {
-	Name        string
-	Description string
-	Type        string
-}
-
-type Output struct {
-	Name        string
-	Description string
-	Type        string
-}
-
-type Parameter struct {
-	Name        string
-	Description string
-	Type        string
-}
-
-type Input struct {
-	Name        string
-	Description string
-	Type        string
-}
-
-type Endpoint struct {
-	ID          string
-	Method      string
-	Path        string
-	Description string
-	URLParams   []string
-	Payload     []Input
-	Response    []Output
-	QueryParams []Parameter
-}
-
-func ScrapeRedditAPI(limit int, onEndpointTargeted, onEndpointProcessed func(string)) ([]Endpoint, error) {
+func ScrapeRedditAPI(limit int, onEndpointTargeted, onEndpointProcessed func(string)) ([]models.Endpoint, error) {
 	c := colly.NewCollector()
 	c.SetRequestTimeout(1 * time.Second) // Adjust as needed
 	var mu sync.Mutex                    // For safe access to results slice
@@ -81,7 +49,7 @@ func ScrapeRedditAPI(limit int, onEndpointTargeted, onEndpointProcessed func(str
 	})
 
 	var elements []*colly.HTMLElement
-	results := make([]Endpoint, 0)
+	results := make([]models.Endpoint, 0)
 
 	c.OnHTML("div.endpoint", func(e *colly.HTMLElement) {
 		elements = append(elements, e) // Collect all matching elements
@@ -108,7 +76,7 @@ func ScrapeRedditAPI(limit int, onEndpointTargeted, onEndpointProcessed func(str
 		wg.Add(1)
 		go func(segment []*colly.HTMLElement) {
 			defer wg.Done()
-			var localResults []Endpoint
+			var localResults []models.Endpoint
 			for _, e := range segment {
 				endpoint := processEndpoint(e)
 				localResults = append(localResults, endpoint)
@@ -139,7 +107,7 @@ func processEndpoint(e *colly.HTMLElement,
 
 //onEndpointTargetted func(string), onEndpointProcessed func(string)
 
-) Endpoint {
+) models.Endpoint {
 	start := time.Now()
 	log.Println("Processing started")
 
@@ -180,7 +148,7 @@ func processEndpoint(e *colly.HTMLElement,
 		finalPayload = newPayload
 	}
 
-	endpoint := Endpoint{
+	endpoint := models.Endpoint{
 		ID:          id,
 		Method:      method,
 		Path:        path,
@@ -233,8 +201,8 @@ func extractURLParams(e *colly.HTMLElement) []string {
 // }
 
 // Extract payload parameters when indicated in the HTML structure
-func extractPayload(e *colly.HTMLElement) []Input {
-	var inputs []Input
+func extractPayload(e *colly.HTMLElement) []models.Input {
+	var inputs []models.Input
 
 	// Check if there's a specific indication that this table is for JSON payload
 	e.ForEach("table.parameters tr", func(_ int, tr *colly.HTMLElement) {
@@ -259,7 +227,7 @@ func extractPayload(e *colly.HTMLElement) []Input {
 
 					name, inputType, description := parsePayloadLine(line)
 					if name != "" {
-						input := Input{
+						input := models.Input{
 							Name:        name,
 							Description: description,
 							Type:        inputType,
@@ -281,6 +249,7 @@ func parsePayloadLine(line string) (name, inputType, description string) {
 		return "", "", ""
 	}
 
+	name = parser.RemoveInvalidCharacters(name)
 	name = strings.TrimSpace(strings.Trim(parts[0], `"`))
 	description = strings.TrimSpace(parts[1])
 
@@ -289,9 +258,9 @@ func parsePayloadLine(line string) (name, inputType, description string) {
 	return name, inputType, description
 }
 
-func extractPayloadOrResponse(e *colly.HTMLElement, method string) ([]Input, []Output) {
-	var inputs []Input
-	var outputs []Output
+func extractPayloadOrResponse(e *colly.HTMLElement, method string) ([]models.Input, []models.Output) {
+	var inputs []models.Input
+	var outputs []models.Output
 	isPayload := false
 
 	// Determine if the table is likely a payload or a response
@@ -320,7 +289,7 @@ func extractPayloadOrResponse(e *colly.HTMLElement, method string) ([]Input, []O
 
 		if isPayload {
 			inputType := determineType(paramDesc)
-			input := Input{
+			input := models.Input{
 				Name:        paramName,
 				Description: paramDesc,
 				Type:        inputType,
@@ -328,7 +297,7 @@ func extractPayloadOrResponse(e *colly.HTMLElement, method string) ([]Input, []O
 			inputs = append(inputs, input)
 		} else {
 			outputType := determineType(paramDesc)
-			output := Output{
+			output := models.Output{
 				Name:        paramName,
 				Description: paramDesc,
 				Type:        outputType,
@@ -386,15 +355,15 @@ func isPayload(method string) bool {
 }
 
 // Extract query parameters if present
-func extractQueryParams(e *colly.HTMLElement) []Parameter {
-	var queryParams []Parameter
+func extractQueryParams(e *colly.HTMLElement) []models.Parameter {
+	var queryParams []models.Parameter
 	e.ForEach("table.parameters tbody tr", func(_ int, tr *colly.HTMLElement) {
 		if tr.ChildText("th") == "after" || tr.ChildText("th") == "before" || tr.ChildText("th") == "count" || tr.ChildText("th") == "limit" {
 			paramName := tr.ChildText("th")
 			paramDesc := tr.ChildText("td p")
 			paramType := determineType(paramDesc)
 
-			queryParams = append(queryParams, Parameter{
+			queryParams = append(queryParams, models.Parameter{
 				Name:        paramName,
 				Description: paramDesc,
 				Type:        paramType,
@@ -425,6 +394,10 @@ func determineType(description string) string {
 	case strings.Contains(description, "fullname"):
 		return "string"
 	case strings.Contains(description, "one of"):
+		// Fix original desc for the one-off case where the descriptino contains "one of (`,left,right`)"
+		// This is just broken, it should be changed to one of (left, right)
+		originalDesc := parser.FormatOneOfEnum(originalDesc)
+
 		// Extract the content between parentheses as the enum values
 		start := strings.Index(originalDesc, "one of (")
 		end := strings.Index(originalDesc, ")")
@@ -495,6 +468,7 @@ func extractDynamicPath(e *colly.HTMLElement) string {
 	// Remove any remaining brackets in the path
 	cleanPath = strings.ReplaceAll(cleanPath, "[", "")
 	cleanPath = strings.ReplaceAll(cleanPath, "]", "")
+	cleanPath = parser.CleanColonPath(cleanPath)
 
 	return cleanPath
 }

@@ -39,6 +39,13 @@ func setupSDKDirectory(basePath string) (string, error) {
 	// Define the SDK directory path
 	sdkDir := filepath.Join(basePath)
 
+	if _, err := os.Stat(sdkDir); err == nil {
+		// Directory exists, so delete it
+		if err := os.RemoveAll(sdkDir); err != nil {
+			return "", fmt.Errorf("could not delete existing SDK directory: %w", err)
+		}
+	}
+
 	// Create the SDK directory if it does not exist
 	if err := os.MkdirAll(sdkDir, os.ModePerm); err != nil {
 		return "", fmt.Errorf("could not create SDK directory structure: %w", err)
@@ -101,12 +108,20 @@ func main() {
 // initGoModule initializes a new Go module in the specified directory
 func initGoModule(basePath string, moduleName string) error {
 	cmd := exec.Command("go", "mod", "init", moduleName)
-	cmd.Dir = basePath // Set the directory where the command should run
+	tidyCmd := exec.Command("go", "mod", "tidy")
+
+	cmd.Dir = basePath     // Set the directory where the command should run
+	tidyCmd.Dir = basePath // Set the directory where the command should run
 
 	// Run the command and capture output
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to initialize go module: %w, output: %s", err, string(output))
+	}
+
+	outputTidy, err := tidyCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to initialize go module: %w, outputTidy: %s", err, string(outputTidy))
 	}
 
 	fmt.Printf("Go module initialized: %s\n", string(output))

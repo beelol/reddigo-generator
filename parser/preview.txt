@@ -22,7 +22,7 @@ func GETApiV1Me() (GETApiV1MeResponse, error) {
 	}
 	defer resp.Body.Close()
 	var response GETApiV1MeResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := jsonpkg.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return GETApiV1MeResponse{}, err
 	}
 	return response, nil
@@ -47,14 +47,14 @@ func POSTApiV1CollectionsCreateCollection(title string, description string, lang
 	}
 	queryParams := urlpkg.Values{}
 	queryParams.Add("lang", lang)
-	url += "?" + queryParams.Encode()
+	reqUrl += "?" + queryParams.Encode()
 	// Construct the request for POST method
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		return POSTApiV1CollectionsCreateCollectionResponse{}, err
 	}
-	jsonPayload, err := json.Marshal(payload)
+	jsonPayload, err := jsonpkg.Marshal(payload)
 	if err != nil {
 		return POSTApiV1CollectionsCreateCollectionResponse{}, err
 	}
@@ -66,7 +66,7 @@ func POSTApiV1CollectionsCreateCollection(title string, description string, lang
 	}
 	defer resp.Body.Close()
 	var response POSTApiV1CollectionsCreateCollectionResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := jsonpkg.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return POSTApiV1CollectionsCreateCollectionResponse{}, err
 	}
 	return response, nil

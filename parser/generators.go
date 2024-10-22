@@ -3,7 +3,7 @@ package parser
 import (
 	"fmt"
 	"log"
-	"reddit-go-api-generator/scraper"
+	"reddit-go-api-generator/models"
 	"strings"
 )
 
@@ -18,7 +18,7 @@ func removeDynamicFields(path string) string {
 }
 
 // Helper function to create the function name in camel case, handling placeholders
-func buildFunctionName(endpoint scraper.Endpoint) string {
+func buildFunctionName(endpoint models.Endpoint) string {
 	method := strings.Title(strings.ToLower(endpoint.Method))
 	name := cleanAPIPath(endpoint.Path)
 	name = cleanPath(name)
@@ -35,7 +35,7 @@ func cleanAPIPath(path string) string {
 }
 
 // Helper function to generate the response struct if needed
-func generateResponseStruct(endpoint scraper.Endpoint, funcName string) string {
+func generateResponseStruct(endpoint models.Endpoint, funcName string) string {
 	if len(endpoint.Response) == 0 {
 		return ""
 	}
@@ -44,7 +44,12 @@ func generateResponseStruct(endpoint scraper.Endpoint, funcName string) string {
 	structDef := fmt.Sprintf("// %s represents the response for %s %s\n", responseStructName, endpoint.Method, endpoint.Path)
 	structDef += fmt.Sprintf("type %s struct {\n", responseStructName)
 	for _, resp := range endpoint.Response {
-		fieldName := strings.Title(toCamelCaseFromUnderscore(resp.Name))
+		fieldName := strings.Title(toCamelCaseFromSnakeCase(resp.Name))
+
+		if fieldName == "Type" {
+			fieldName = "TypeValue" // Avoid Go keyword conflict
+		}
+
 		fieldType := adjustEnumType(resp.Type)
 		jsonTag := toSnakeCase(resp.Name)
 
@@ -57,7 +62,7 @@ func generateResponseStruct(endpoint scraper.Endpoint, funcName string) string {
 	return structDef
 }
 
-func getResponseStructName(funcName string, response []scraper.Output) string {
+func getResponseStructName(funcName string, response []models.Output) string {
 	if len(response) == 0 {
 		println(fmt.Sprintf("%s has no response body", funcName))
 		return "any"
@@ -84,7 +89,7 @@ func formatFieldDescription(description string) string {
 }
 
 // Helper function to generate function comments
-func generateFunctionComment(endpoint scraper.Endpoint, funcName string) string {
+func generateFunctionComment(endpoint models.Endpoint, funcName string) string {
 	return fmt.Sprintf(`/*
 %s makes a %s request to %s
 ID: %s
@@ -93,7 +98,7 @@ Description: %s
 `, funcName, endpoint.Method, endpoint.Path, endpoint.ID, endpoint.Description)
 }
 
-func generateFunctionSignature(endpoint scraper.Endpoint, funcName string, enums []Enum) string {
+func generateFunctionSignature(endpoint models.Endpoint, funcName string, enums []models.Enum) string {
 	log.Printf("Generating function signature for: %s", funcName)
 
 	params := collectFunctionParameters(endpoint)
@@ -106,14 +111,14 @@ func generateFunctionSignature(endpoint scraper.Endpoint, funcName string, enums
 }
 
 // Helper function to collect parameters for the function signature
-func collectFunctionParameters(endpoint scraper.Endpoint) []string {
+func collectFunctionParameters(endpoint models.Endpoint) []string {
 	var params []string
 	paramSet := make(map[string]bool) // A set to track existing parameter names
 
 	// Add dynamic parts (e.g., subreddit, where)
 	dynamicFields := extractDynamicFields(endpoint.Path)
 	for _, field := range dynamicFields {
-		paramName := toLowerCamelCase(field)
+		paramName := formatProperty(field)
 		if !paramSet[paramName] { // Only add if it hasn't been added yet
 			params = append(params, fmt.Sprintf("%s string", paramName))
 			paramSet[paramName] = true
@@ -122,14 +127,14 @@ func collectFunctionParameters(endpoint scraper.Endpoint) []string {
 
 	// Add URL parameters, payload, and query parameters
 	for _, param := range endpoint.URLParams {
-		paramName := toLowerCamelCase(param)
+		paramName := formatProperty(param)
 		if !paramSet[paramName] {
 			params = append(params, fmt.Sprintf("%s string", paramName))
 			paramSet[paramName] = true
 		}
 	}
 	for _, payload := range endpoint.Payload {
-		paramName := toLowerCamelCase(payload.Name)
+		paramName := formatProperty(payload.Name)
 		paramType := adjustEnumType(payload.Type)
 		if !paramSet[paramName] {
 			params = append(params, fmt.Sprintf("%s %s", paramName, paramType))
@@ -137,7 +142,7 @@ func collectFunctionParameters(endpoint scraper.Endpoint) []string {
 		}
 	}
 	for _, queryParam := range endpoint.QueryParams {
-		paramName := toLowerCamelCase(queryParam.Name)
+		paramName := formatProperty(queryParam.Name)
 		if !paramSet[paramName] {
 			params = append(params, fmt.Sprintf("%s string", paramName))
 			paramSet[paramName] = true
@@ -148,13 +153,25 @@ func collectFunctionParameters(endpoint scraper.Endpoint) []string {
 }
 
 // Helper function to build the URL using dynamic fields and parameters
-func buildURL(endpoint scraper.Endpoint) string {
+func buildURL(endpoint models.Endpoint) string {
 	urlPattern := transformDynamicFields(endpoint.Path)
-	urlBuild := fmt.Sprintf("\turl := fmt.Sprintf(\"%s\"", urlPattern)
-	for _, field := range extractDynamicFields(endpoint.Path) {
-		urlBuild += fmt.Sprintf(", %s", toLowerCamelCase(field))
+
+	dynamicFields := extractDynamicFields(endpoint.Path)
+
+	urlBuild := ""
+
+	if len(dynamicFields) > 0 {
+		urlBuild = fmt.Sprintf("\treqUrl := fmt.Sprintf(\"%s\"", urlPattern)
+
+		for _, field := range dynamicFields {
+			urlBuild += fmt.Sprintf(", %s", toLowerCamelCase(field))
+		}
+		urlBuild += ")"
+	} else {
+		urlBuild = fmt.Sprintf("\treqUrl := \"%s\"", urlPattern)
 	}
-	urlBuild += ")\n"
+
+	urlBuild += "\n"
 	return urlBuild
 }
 
@@ -188,7 +205,7 @@ func transformDynamicFields(path string) string {
 }
 
 // Helper function to prepare payload
-func buildPayload(endpoint scraper.Endpoint) string {
+func buildPayload(endpoint models.Endpoint) string {
 	if len(endpoint.Payload) == 0 {
 		return ""
 	}
@@ -196,12 +213,18 @@ func buildPayload(endpoint scraper.Endpoint) string {
 	// Check if the payload should be treated as the entire JSON body
 	if len(endpoint.Payload) == 1 && strings.ToLower(endpoint.Payload[0].Name) == "json" {
 		payloadName := toLowerCamelCase(endpoint.Payload[0].Name)
+
 		return fmt.Sprintf("\tpayload := %s\n", payloadName)
 	}
 
 	payloadBuild := "\tpayload := map[string]interface{}{\n"
 	for _, payload := range endpoint.Payload {
-		payloadBuild += fmt.Sprintf("\t\t\"%s\": %s,\n", toSnakeCase(payload.Name), toLowerCamelCase(payload.Name))
+		//payloadBuild += fmt.Sprintf("\t\t\"%s\": %s,\n", toSnakeCase(payload.Name), toLowerCamelCase(payload.Name))
+
+		paramName := formatProperty(payload.Name)
+		jsonName := toSnakeCase(payload.Name)
+
+		payloadBuild += fmt.Sprintf("\t\t\"%s\": %s,\n", jsonName, paramName)
 	}
 
 	payloadBuild += "\t}\n"
@@ -209,7 +232,7 @@ func buildPayload(endpoint scraper.Endpoint) string {
 }
 
 // Helper function to build query parameters
-func buildQueryParams(endpoint scraper.Endpoint) string {
+func buildQueryParams(endpoint models.Endpoint) string {
 	if len(endpoint.QueryParams) == 0 {
 		return ""
 	}
@@ -217,12 +240,12 @@ func buildQueryParams(endpoint scraper.Endpoint) string {
 	for _, queryParam := range endpoint.QueryParams {
 		queryParamsBuild += fmt.Sprintf("\tqueryParams.Add(\"%s\", %s)\n", toSnakeCase(queryParam.Name), toLowerCamelCase(queryParam.Name))
 	}
-	queryParamsBuild += "\turl += \"?\" + queryParams.Encode()\n"
+	queryParamsBuild += "\treqUrl += \"?\" + queryParams.Encode()\n"
 	return queryParamsBuild
 }
 
 // Helper function to construct the request using MakeRequest from ReddiGoSDK
-func buildRequest(endpoint scraper.Endpoint, funcName string) string {
+func buildRequest(endpoint models.Endpoint, funcName string) string {
 	requestBuild := fmt.Sprintf("\t// Construct the request for %s method\n", endpoint.Method)
 
 	// Build the URL using the helper function
@@ -237,19 +260,23 @@ func buildRequest(endpoint scraper.Endpoint, funcName string) string {
 		newInstanceOfResponseStr = fmt.Sprintf("%s{}", responseName)
 	}
 
+	// Variable to hold the body for the MakeRequest function
+	bodyVar := "nil"
+
 	// Add headers and body for POST/PUT methods
 	if endpoint.Method == "POST" || endpoint.Method == "PATCH" || endpoint.Method == "PUT" {
-		requestBuild += "\tjsonPayload, err := json.Marshal(payload)\n"
+		requestBuild += "\tjsonPayload, err := jsonpkg.Marshal(payload)\n"
 		requestBuild += "\tif err != nil {\n\t\treturn " + newInstanceOfResponseStr + ", err\n\t}\n"
-		requestBuild += "\treq.Header.Set(\"Content-Type\", \"application/json\")\n"
-		requestBuild += "\treq.Body = io.NopCloser(bytes.NewBuffer(jsonPayload))\n"
+		//requestBuild += "\treq.Header.Set(\"Content-Type\", \"application/json\")\n"
+		//requestBuild += "\treq.Body = io.NopCloser(bytes.NewBuffer(jsonPayload))\n"
+		bodyVar = "bytes.NewBuffer(jsonPayload)"
 	}
 
-	requestBuild += "\treq, err := sdk.MakeRequest(\"" + endpoint.Method + "\", url, nil)\n"
+	requestBuild += fmt.Sprintf("\tresp, err := sdk.MakeRequest(\"%s\", reqUrl, %s)\n", endpoint.Method, bodyVar)
 	requestBuild += "\tif err != nil {\n\t\treturn " + newInstanceOfResponseStr + ", err\n\t}\n"
 	requestBuild += "\tdefer resp.Body.Close()\n"
 	requestBuild += fmt.Sprintf("\tvar response %s\n", responseName)
-	requestBuild += "\tif err := json.NewDecoder(resp.Body).Decode(&response); err != nil {\n"
+	requestBuild += "\tif err := jsonpkg.NewDecoder(resp.Body).Decode(&response); err != nil {\n"
 	requestBuild += "\t\treturn " + newInstanceOfResponseStr + ", err\n\t}\n"
 
 	return requestBuild
