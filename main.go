@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"reddit-go-api-generator/parser"
 	"reddit-go-api-generator/scraper"
 )
@@ -32,10 +33,21 @@ import (
 //	return count, nil
 //}
 
+// setupSDKDirectory creates the directory structure for the SDK if it does not exist
+func setupSDKDirectory(basePath string) (string, error) {
+	// Define the SDK directory path
+	sdkDir := filepath.Join(basePath)
+
+	// Create the SDK directory if it does not exist
+	if err := os.MkdirAll(sdkDir, os.ModePerm); err != nil {
+		return "", fmt.Errorf("could not create SDK directory structure: %w", err)
+	}
+
+	// Return the final path where the generated file should be placed
+	return filepath.Join(sdkDir, "reddigo.go"), nil
+}
+
 func main() {
-
-	// Create a channel to signal when we're done
-
 	endpointsData, err := scraper.ScrapeRedditAPI(0,
 		func(s string) {
 			//log.Printf("Targeted: %s", s)
@@ -57,11 +69,11 @@ func main() {
 		println(function)
 	}
 
-	outputFileFinal := "reddit_api_sdk.go"
-	outputFile := collectOutputFilename()
+	sdkPath := collectSDKFilePath()
+	outputFileFinal, err := setupSDKDirectory(sdkPath)
 
-	if outputFile != nil {
-		outputFileFinal = *outputFile
+	if err != nil {
+		log.Fatalf("Error setting up SDK directory: %v", err)
 	}
 
 	err = writeToFile(outputFileFinal, finalFunctions)
@@ -99,19 +111,28 @@ func writeToFile(filename string, functions []string) error {
 	return nil
 }
 
-func collectOutputFilename() *string {
-	outputFile := flag.String("o", "", "Specify the output filename")
+func collectSDKFilePath() string {
+	// Define a flag to collect the SDK base path
+	sdkPath := flag.String("o", "reddigo", "Specify the base path for the SDK directory")
 
 	// Parse the flags
 	flag.Parse()
 
-	// Check if the -o flag is provided and has a value
-	if *outputFile == "" {
-		log.Fatal("Error: You must provide an output filename with -o")
+	// Check if the -sdkPath flag is provided and has a value
+	if *sdkPath == "" {
+		log.Fatal("Error: You must provide an SDK base path with -sdkPath")
 	}
 
-	// Use the value of the -o flag
-	fmt.Printf("Output filename: %s\n", *outputFile)
+	//// Construct the SDK file path
+	//filePath, err := setupSDKDirectory(*sdkPath)
+	//if err != nil {
+	//	log.Fatalf("Error setting up SDK directory: %v", err)
+	//}
+	//
+	//// Print the path for confirmation
+	//fmt.Printf("SDK file path: %s\n", filePath)
 
-	return outputFile
+	//return &filePath
+
+	return *sdkPath
 }
