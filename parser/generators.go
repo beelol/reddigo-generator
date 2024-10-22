@@ -39,12 +39,13 @@ func generateResponseStruct(endpoint scraper.Endpoint, funcName string) string {
 	if len(endpoint.Response) == 0 {
 		return ""
 	}
-	responseStructName := fmt.Sprintf("%sResponse", funcName)
+	responseStructName := getResponseStructName(funcName, endpoint.Response)
+
 	structDef := fmt.Sprintf("// %s represents the response for %s %s\n", responseStructName, endpoint.Method, endpoint.Path)
 	structDef += fmt.Sprintf("type %s struct {\n", responseStructName)
 	for _, resp := range endpoint.Response {
 		fieldName := strings.Title(toCamelCaseFromUnderscore(resp.Name))
-		fieldType := resp.Type
+		fieldType := adjustEnumType(resp.Type)
 		jsonTag := toSnakeCase(resp.Name)
 
 		// Format the description as a multi-line comment if it contains multiple lines
@@ -54,6 +55,16 @@ func generateResponseStruct(endpoint scraper.Endpoint, funcName string) string {
 	}
 	structDef += "}\n\n"
 	return structDef
+}
+
+func getResponseStructName(funcName string, response []scraper.Output) string {
+	if len(response) == 0 {
+		println(fmt.Sprintf("%s has no response body", funcName))
+		return "any"
+	}
+
+	responseStructName := fmt.Sprintf("%sResponse", funcName)
+	return responseStructName
 }
 
 // Helper function to format the field description for multi-line comments
@@ -82,12 +93,6 @@ Description: %s
 `, funcName, endpoint.Method, endpoint.Path, endpoint.ID, endpoint.Description)
 }
 
-// Helper function to generate the function signature as a method of ReddiGoSDK
-// func generateFunctionSignature(endpoint scraper.Endpoint, funcName string) string {
-// 	params := collectFunctionParameters(endpoint)
-// 	return fmt.Sprintf("func (sdk *ReddiGoSDK) %s(%s) (%sResponse, error) {\n", funcName, strings.Join(params, ", "), funcName)
-// }
-
 func generateFunctionSignature(endpoint scraper.Endpoint, funcName string, enums []Enum) string {
 	log.Printf("Generating function signature for: %s", funcName)
 
@@ -95,7 +100,9 @@ func generateFunctionSignature(endpoint scraper.Endpoint, funcName string, enums
 
 	log.Printf("Parameters collected: %v", params)
 
-	return fmt.Sprintf("func (sdk *ReddiGoSDK) %s(%s) (%sResponse, error) {\n", funcName, strings.Join(params, ", "), funcName)
+	responseStructName := getResponseStructName(funcName, endpoint.Response)
+
+	return fmt.Sprintf("func (sdk *ReddiGoSDK) %s(%s) (%s, error) {\n", funcName, strings.Join(params, ", "), responseStructName)
 }
 
 // Helper function to collect parameters for the function signature
@@ -221,20 +228,29 @@ func buildRequest(endpoint scraper.Endpoint, funcName string) string {
 	// Build the URL using the helper function
 	// requestBuild += buildURL(endpoint)
 
+	responseName := getResponseStructName(funcName, endpoint.Response)
+	newInstanceOfResponseStr := ""
+
+	if responseName == "any" {
+		newInstanceOfResponseStr = "nil"
+	} else {
+		newInstanceOfResponseStr = fmt.Sprintf("%s{}", responseName)
+	}
+
 	// Add headers and body for POST/PUT methods
 	if endpoint.Method == "POST" || endpoint.Method == "PATCH" || endpoint.Method == "PUT" {
 		requestBuild += "\tjsonPayload, err := json.Marshal(payload)\n"
-		requestBuild += "\tif err != nil {\n\t\treturn " + funcName + "Response{}, err\n\t}\n"
+		requestBuild += "\tif err != nil {\n\t\treturn " + newInstanceOfResponseStr + ", err\n\t}\n"
 		requestBuild += "\treq.Header.Set(\"Content-Type\", \"application/json\")\n"
 		requestBuild += "\treq.Body = io.NopCloser(bytes.NewBuffer(jsonPayload))\n"
 	}
 
 	requestBuild += "\treq, err := sdk.MakeRequest(\"" + endpoint.Method + "\", url, nil)\n"
-	requestBuild += "\tif err != nil {\n\t\treturn " + funcName + "Response{}, err\n\t}\n"
+	requestBuild += "\tif err != nil {\n\t\treturn " + newInstanceOfResponseStr + ", err\n\t}\n"
 	requestBuild += "\tdefer resp.Body.Close()\n"
-	requestBuild += fmt.Sprintf("\tvar response %sResponse\n", funcName)
+	requestBuild += fmt.Sprintf("\tvar response %s\n", responseName)
 	requestBuild += "\tif err := json.NewDecoder(resp.Body).Decode(&response); err != nil {\n"
-	requestBuild += "\t\treturn " + funcName + "Response{}, err\n\t}\n"
+	requestBuild += "\t\treturn " + newInstanceOfResponseStr + ", err\n\t}\n"
 
 	return requestBuild
 }
